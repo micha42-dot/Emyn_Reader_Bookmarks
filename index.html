@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#3274d1" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Emyn">
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="apple-touch-icon" href="https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-news.png">
+    
+    <title>Emyn Reader</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          fontFamily: {
+            sans: ['Inter', 'Arial', 'sans-serif'],
+            serif: ['Georgia', 'serif'],
+            mono: ['Monaco', 'monospace'],
+            verdana: ['Verdana', 'sans-serif']
+          },
+          extend: {
+            colors: {
+              blue: {
+                50: '#eef5fc',
+                100: '#dcebf9',
+                200: '#bad6f4',
+                300: '#8eb7ed',
+                400: '#5d93e5',
+                500: '#3b74db',
+                600: '#3274d1',
+                700: '#295db0',
+                800: '#264d8f',
+                900: '#234171',
+                950: '#172945',
+              },
+              aol: {
+                header: '#1a1d21',
+                search: '#2d3238',
+                toolbar: '#ffffff',
+                sidebar: '#f8fafc',
+                highlight: '#f1f5f9',
+                accent: '#3274d1',
+                text: '#1e293b',
+                meta: '#64748b'
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 0; }
+      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; }
+      
+      body { overscroll-behavior-y: none; -webkit-font-smoothing: antialiased; }
+      .article-content img { max-width: 100%; height: auto; border-radius: 0; margin: 1.5rem 0; }
+      
+      /* Force no rounding everywhere */
+      * { border-radius: 0 !important; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "date-fns": "https://esm.sh/date-fns@^4.1.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.90.1",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased overflow-hidden selection:bg-blue-100 dark:selection:bg-blue-900">
+    <div id="root"></div>
+    <script type="module" src="./index.tsx"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

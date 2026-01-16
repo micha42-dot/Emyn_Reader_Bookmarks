@@ -1,0 +1,22 @@
+
+{
+  "name": "Emyn Reader",
+  "short_name": "Emyn",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3274d1",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-news.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-news.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

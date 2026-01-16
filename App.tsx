@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Menu, RefreshCw, Plus, List, Settings, Search, Home, Star, ChevronDown, Check, Eye, CreditCard, FileText, Wrench, Bookmark as BookmarkIcon, Asterisk, User, Loader2, Rss } from 'lucide-react';
+import { Menu, RefreshCw, Plus, List, Settings, Search, Home, Star, ChevronDown, Check, Eye, EyeOff, CreditCard, FileText, Wrench, Bookmark as BookmarkIcon, Asterisk, User, Loader2, Rss, CheckCheck } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import ArticleList from './components/ArticleList';
 import ArticleDetail from './components/ArticleDetail';
@@ -11,6 +11,7 @@ import BookmarkSidebar from './components/Bookmarks/BookmarkSidebar';
 import BookmarkList from './components/Bookmarks/BookmarkList';
 import AddBookmarkModal from './components/Bookmarks/AddBookmarkModal';
 import BookmarkDetail from './components/Bookmarks/BookmarkDetail';
+import MarkAllReadModal from './components/MarkAllReadModal';
 
 import { fetchFeed, normalizeUrl } from './services/feedService';
 import { Article, Feed, FilterType, ViewMode, Folder as FolderType, AppSettings, Bookmark, BookmarkFolder, SupabaseConfig, AppMode } from './types';
@@ -74,8 +75,10 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMarkAllReadModalOpen, setIsMarkAllReadModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>(settings.defaultViewMode);
+  const [hideReadItems, setHideReadItems] = useState<boolean>(() => loadFromStorage('hideReadItems', true));
 
   // Debounce helper for storage
   const useDebouncedEffect = (effect: () => void, deps: any[], delay: number) => {
@@ -96,6 +99,7 @@ const App: React.FC = () => {
   useDebouncedEffect(() => { localStorage.setItem('starredIds', JSON.stringify(Array.from(starredArticleIds))); }, [starredArticleIds], 500);
   useDebouncedEffect(() => { localStorage.setItem('bookmarks', JSON.stringify(bookmarks)); }, [bookmarks], 500);
   useDebouncedEffect(() => { localStorage.setItem('bookmarkFolders', JSON.stringify(bookmarkFolders)); }, [bookmarkFolders], 500);
+  useDebouncedEffect(() => { localStorage.setItem('hideReadItems', JSON.stringify(hideReadItems)); }, [hideReadItems], 500);
 
   useEffect(() => {
     if (settings.theme === 'dark') document.documentElement.classList.add('dark');
@@ -184,13 +188,13 @@ const App: React.FC = () => {
 
   const handleExportData = (format: 'csv' | 'xml' | 'sql') => {
       let content = "";
-      let filename = `gondor_bookmarks.${format}`;
+      let filename = `emyn_bookmarks.${format}`;
       let mimeType = "text/plain";
       if (format === 'csv') {
           content = "Title,URL,Tags,Notes,IsUnread\n" + bookmarks.map(b => `"${b.title}","${b.url}","${b.tags.join(',')}","${b.notes || ''}",${b.isUnread}`).join("\n");
           mimeType = "text/csv";
       } else if (format === 'xml') {
-          content = `<?xml version="1.0" encoding="UTF-8"?><opml version="2.0"><head><title>Gondor Bookmarks</title></head><body>` + bookmarks.map(b => `<outline text="${b.title}" xmlUrl="${b.url}" htmlUrl="${b.url}" />`).join("") + `</body></opml>`;
+          content = `<?xml version="1.0" encoding="UTF-8"?><opml version="2.0"><head><title>Emyn Bookmarks</title></head><body>` + bookmarks.map(b => `<outline text="${b.title}" xmlUrl="${b.url}" htmlUrl="${b.url}" />`).join("") + `</body></opml>`;
           mimeType = "text/xml";
       } else if (format === 'sql') {
           content = bookmarks.map(b => `INSERT INTO bookmarks (id, url, title, tags, is_unread) VALUES ('${b.id}', '${b.url}', '${b.title}', '{${b.tags.join(',')}}', ${b.isUnread});`).join("\n");
@@ -279,6 +283,29 @@ const App: React.FC = () => {
     if (session && settings.supabaseConfig) {
       const sb = getSupabase(settings.supabaseConfig.url, settings.supabaseConfig.key);
       await sb.from(settings.supabaseConfig.tableName).upsert({ id: b.id, user_id: session.user.id, url: b.url, title: b.title, description: b.description, tags: b.tags, folder_id: b.folderId || null, is_unread: b.isUnread, notes: b.notes, created_at: b.createdAt }, { onConflict: 'id' });
+    }
+  };
+
+  const handleUpdateBookmark = async (updated: Bookmark) => {
+    setBookmarks(prev => prev.map(b => b.id === updated.id ? updated : b));
+    if (selectedBookmark && selectedBookmark.id === updated.id) {
+        setSelectedBookmark(updated);
+    }
+    
+    if (session && settings.supabaseConfig) {
+        const sb = getSupabase(settings.supabaseConfig.url, settings.supabaseConfig.key);
+        await sb.from(settings.supabaseConfig.tableName).upsert({ 
+            id: updated.id, 
+            user_id: session.user.id, 
+            url: updated.url, 
+            title: updated.title, 
+            description: updated.description, 
+            tags: updated.tags, 
+            folder_id: updated.folderId || null, 
+            is_unread: updated.isUnread, 
+            notes: updated.notes, 
+            created_at: updated.createdAt 
+        }, { onConflict: 'id' });
     }
   };
 
@@ -433,15 +460,22 @@ const App: React.FC = () => {
         r = r.filter(a => starredArticleIds.has(a.guid));
     } else if (filterType === FilterType.UNREAD) {
         r = r.filter(a => !readArticleIds.has(a.guid));
+    } else if (filterType === FilterType.HISTORY) {
+        r = r.filter(a => readArticleIds.has(a.guid));
     }
     
+    // Global Hide Read (except for History and Starred)
+    if (hideReadItems && filterType !== FilterType.HISTORY && filterType !== FilterType.STARRED) {
+        r = r.filter(a => !readArticleIds.has(a.guid));
+    }
+
     if (searchQuery) { 
         const q = searchQuery.toLowerCase(); 
         r = r.filter(a => a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)); 
     }
     
     return r;
-  }, [articles, filterType, selectedFeedId, selectedFolderId, folders, starredArticleIds, readArticleIds, searchQuery, appMode]);
+  }, [articles, filterType, selectedFeedId, selectedFolderId, folders, starredArticleIds, readArticleIds, searchQuery, appMode, hideReadItems]);
 
   const filteredBookmarks = useMemo(() => {
     if (appMode !== 'bookmarks') return [];
@@ -489,8 +523,48 @@ const App: React.FC = () => {
       }));
   };
 
+  const handleMarkAllRead = async () => {
+      // 1. Identify which articles are currently visible AND unread
+      const idsToMark = filteredArticles
+        .filter(a => !readArticleIds.has(a.guid))
+        .map(a => a.guid);
+      
+      if (idsToMark.length === 0) {
+          setIsMarkAllReadModalOpen(false);
+          return;
+      }
+
+      // 2. Update Local State (Optimistic UI)
+      setReadArticleIds(prev => {
+          const next = new Set(prev);
+          idsToMark.forEach(id => next.add(id));
+          return next;
+      });
+
+      // 3. Sync to Supabase (Batch Upsert)
+      if (session && settings.supabaseConfig) {
+           const sb = getSupabase(settings.supabaseConfig.url, settings.supabaseConfig.key);
+           
+           // We need to preserve 'is_starred' state for these items.
+           // Since we are marking them read, we check if they are currently starred locally.
+           const updates = idsToMark.map(id => ({
+               user_id: session.user.id,
+               article_guid: id,
+               is_read: true,
+               is_starred: starredArticleIds.has(id)
+           }));
+
+           await sb.from('article_states').upsert(updates, { onConflict: 'user_id,article_guid' });
+      }
+
+      setIsMarkAllReadModalOpen(false);
+  };
+
   if (isAuthChecking) return <div className="flex h-screen items-center justify-center bg-[#f0f2f5] dark:bg-slate-950 font-sans"><div className="animate-pulse"><Asterisk className="w-8 h-8 text-yellow-400" /></div></div>;
   if (!isAuthenticated) return <LoginScreen onLoginSupabase={handleLoginSupabase} savedSupabaseConfig={settings.supabaseConfig} />;
+  
+  // Calculate unread visible count for disable logic
+  const visibleUnreadCount = filteredArticles.filter(a => !readArticleIds.has(a.guid)).length;
 
   return (
     <div className={`flex flex-col h-screen bg-[#e8e8e8] dark:bg-slate-950 text-aol-text dark:text-slate-100 ${settings.fontFamily === 'sans' ? 'font-sans' : settings.fontFamily === 'serif' ? 'font-serif' : 'font-mono'}`}>
@@ -500,7 +574,7 @@ const App: React.FC = () => {
             <div className="flex items-center space-x-2 mr-6 cursor-pointer" onClick={() => setAppMode('reader')}>
                 <Asterisk className="w-4 h-4 text-white" />
                 <div className="w-3 h-3 bg-yellow-400 rounded-none"></div>
-                <span className="text-xl font-black uppercase tracking-tighter">Gondor</span>
+                <span className="text-xl font-black uppercase tracking-tighter">Emyn</span>
             </div>
             
             <div className="hidden md:flex items-center space-x-4">
@@ -539,7 +613,31 @@ const App: React.FC = () => {
             <div className="h-6 w-px bg-gray-300 dark:bg-slate-700 mx-1"></div>
             <div className="flex items-center pl-2"><span className="font-black text-[10px] uppercase tracking-widest mr-2">{filterType}</span></div>
          </div>
-         <div className="flex items-center space-x-0">
+         <div className="flex items-center space-x-2">
+            {appMode === 'reader' && (
+                <>
+                {/* Hide Read Toggle */}
+                <button 
+                    onClick={() => setHideReadItems(!hideReadItems)}
+                    className={`flex items-center space-x-1 px-2 py-1 border border-gray-300 dark:border-slate-700 text-[10px] font-bold uppercase tracking-wider rounded-none ${hideReadItems ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-black' : 'bg-white text-gray-500 dark:bg-slate-800 dark:text-gray-400'}`}
+                    title={hideReadItems ? "Show read items" : "Hide read items"}
+                 >
+                    {hideReadItems ? <EyeOff className="w-3.5 h-3.5 mr-1" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
+                    {hideReadItems ? 'Hidden' : 'Show All'}
+                 </button>
+
+                 {/* Mark All Read Button - Always visible but disabled if nothing to mark */}
+                 <button 
+                    onClick={() => setIsMarkAllReadModalOpen(true)}
+                    disabled={visibleUnreadCount === 0}
+                    className={`flex items-center space-x-1 px-2 py-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 text-[10px] font-bold uppercase tracking-wider rounded-none mr-2 transition-opacity ${visibleUnreadCount === 0 ? 'opacity-50 cursor-not-allowed text-gray-300 dark:text-gray-600' : 'text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}`}
+                    title="Mark visible as read"
+                >
+                    <CheckCheck className="w-3.5 h-3.5 mr-1" /> Mark All
+                </button>
+                </>
+            )}
+
              <div className="flex items-center bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-700 rounded-none p-0.5">
                 <button onClick={() => setViewMode('list')} className={`p-1 rounded-none ${viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}><List className="w-4 h-4" /></button>
                 <button onClick={() => setViewMode('card')} className={`p-1 rounded-none ${viewMode === 'card' ? 'bg-blue-50 text-blue-600' : 'text-gray-400'}`}><CreditCard className="w-4 h-4" /></button>
@@ -563,7 +661,8 @@ const App: React.FC = () => {
               onSelectFilter={t => { setFilterType(t); setSelectedFeedId(null); setSelectedFolderId(null); }} 
               onToggleFolder={id => setFolders(p => p.map(f => f.id === id ? {...f, isExpanded: !f.isExpanded} : f))} 
               onAddFeed={() => setIsAddModalOpen(true)} 
-              getUnreadCount={u => u ? articles.filter(a => a.feedUrl === u && !readArticleIds.has(a.guid)).length : articles.filter(a => !readArticleIds.has(a.guid)).length} 
+              getUnreadCount={u => u ? articles.filter(a => a.feedUrl === u && !readArticleIds.has(a.guid)).length : articles.filter(a => !readArticleIds.has(a.guid)).length}
+              readCount={readArticleIds.size}
               onMoveFeedToFolder={handleMoveFeedToFolder} 
               onCloseMobile={() => setIsSidebarOpen(false)}
               onDeleteFeed={handleDeleteFeed}
@@ -591,13 +690,24 @@ const App: React.FC = () => {
                   onToggleStar={async (id, e) => { e.stopPropagation(); const ns = !starredArticleIds.has(id); setStarredArticleIds(p => { const n = new Set(p); if(n.has(id)) n.delete(id); else n.add(id); return n; }); }} 
                   onSaveAsBookmark={a => handleCreateBookmark({ id: Date.now().toString(), url: a.link, title: a.title, description: a.description, tags: ['rss'], isUnread: true, notes: `Saved from ${a.feedTitle}`, createdAt: new Date().toISOString() })} />
             ) : (
-                selectedBookmark ? <BookmarkDetail bookmark={selectedBookmark} folders={bookmarkFolders} onClose={() => setSelectedBookmark(null)} onUpdate={async u => { setBookmarks(p => p.map(b => b.id === u.id ? u : b)); setSelectedBookmark(u); }} /> :
+                selectedBookmark ? <BookmarkDetail bookmark={selectedBookmark} folders={bookmarkFolders} onClose={() => setSelectedBookmark(null)} onUpdate={handleUpdateBookmark} /> :
                 <BookmarkList bookmarks={filteredBookmarks} folders={bookmarkFolders} onBookmarkClick={setSelectedBookmark} onToggleUnread={id => setBookmarks(p => p.map(b => b.id === id ? {...b, isUnread: !b.isUnread} : b))} onDelete={handleDeleteBookmark} onSelectTag={t => { setSelectedTag(t); setFilterType(FilterType.TAG); }} />
             )}
         </main>
       </div>
 
       {appMode === 'reader' && selectedArticle && <ArticleDetail article={selectedArticle} onClose={() => setSelectedArticle(null)} isStarred={starredArticleIds.has(selectedArticle.guid)} onToggleStar={() => {}} settings={settings} isRead={readArticleIds.has(selectedArticle.guid)} onToggleRead={() => {}} onSaveAsBookmark={() => {}} />}
+      
+      {/* Modals */}
+      {isMarkAllReadModalOpen && (
+          <MarkAllReadModal 
+              isOpen={isMarkAllReadModalOpen} 
+              onClose={() => setIsMarkAllReadModalOpen(false)} 
+              onConfirm={handleMarkAllRead} 
+              count={filteredArticles.filter(a => !readArticleIds.has(a.guid)).length} 
+          />
+      )}
+
       {isAddModalOpen && (appMode === 'reader' ? <AddFeedModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={handleAddFeed} /> : <AddBookmarkModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={handleCreateBookmark} folders={bookmarkFolders} onCreateFolder={handleCreateBookmarkFolder} />)}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onUpdateSettings={handleUpdateSettings} onExportOpml={() => handleExportData('xml')} onImportOpml={handleImportOpml} isImporting={isImporting} session={session} onLogout={() => setIsAuthenticated(false)} onForceSync={refreshAllFeeds} onExportData={handleExportData} onPushData={handlePushData} onPullData={handlePullData} />
     </div>

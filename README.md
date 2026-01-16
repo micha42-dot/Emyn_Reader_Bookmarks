@@ -2,7 +2,7 @@
 
 **Emyn Reader** is a modern, minimalist RSS feed reader web application inspired by the clean utility of the original Google Reader and Feedly. It aims to bring order to your information diet with a focus on typography, speed, and privacy.
 
-![Screenshot](./Screenshot1.png)
+![Emyn Reader](https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-news.png)
 
 ## 🤖 AI-Assisted Development
 
@@ -25,9 +25,6 @@ While the core reading experience works well, the project is unfinished. You may
 **We are releasing this to the open-source community in the hope that developers with more expertise can adopt it, improve it, and help it reach its full potential.**
 
 Whether you are a React expert, a UI designer, or just love RSS, your contributions are welcome!
-
-![Screenshot](./Screenshot2.png)
-
 
 ## Features
 

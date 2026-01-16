@@ -17,6 +17,7 @@ interface SidebarProps {
   onAddFeed: () => void;
   className?: string;
   getUnreadCount: (feedUrl?: string) => number;
+  readCount?: number; // Added readCount prop
   onMoveFeedToFolder: (feedUrl: string, folderId: string) => void;
   onCloseMobile?: () => void;
   // New props for management
@@ -40,6 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onAddFeed,
   className = '',
   getUnreadCount,
+  readCount = 0,
   onMoveFeedToFolder,
   onCloseMobile,
   onDeleteFeed,
@@ -178,7 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <>
     <div className={`flex flex-col h-full py-4 overflow-y-auto ${className}`}>
       
-      {/* Home / Starred */}
+      {/* Home / Starred / History */}
       <div className="mb-4">
          <SidebarItem 
             icon={<Home className="w-4 h-4 text-gray-500" />}
@@ -193,6 +195,13 @@ const Sidebar: React.FC<SidebarProps> = ({
             count={0} 
             isActive={filterType === FilterType.STARRED}
             onClick={() => handleInteraction(() => onSelectFilter(FilterType.STARRED))}
+         />
+         <SidebarItem 
+            icon={<History className="w-4 h-4 text-purple-500" />}
+            label="Recently Read"
+            count={readCount} 
+            isActive={filterType === FilterType.HISTORY}
+            onClick={() => handleInteraction(() => onSelectFilter(FilterType.HISTORY))}
          />
       </div>
 

@@ -110,14 +110,14 @@ const fetchViaJsonApi = async (url: string): Promise<{ feed: Feed; articles: Art
 };
 
 // --- STRATEGY 2: Client-Side XML Parsing (Fallback) ---
-const fetchViaXmlProxies = async (url: string): Promise<{ feed: Feed; articles: Article[] }> => {
+const fetchViaXmlProxies = async (url: string, isRetry = false): Promise<{ feed: Feed; articles: Article[] }> => {
     const proxies = [
         `https://corsproxy.io/?${encodeURIComponent(url)}`,
         `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
         `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
     ];
 
-    const fetchWithTimeout = async (proxyUrl: string, timeout = 6000): Promise<string> => {
+    const fetchWithTimeout = async (proxyUrl: string, timeout = 8000): Promise<string> => {
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeout);
         try {
@@ -140,16 +140,47 @@ const fetchViaXmlProxies = async (url: string): Promise<{ feed: Feed; articles: 
         throw new Error("All proxies failed");
     }
 
-    const parser = new DOMParser();
-    let xml = parser.parseFromString(text, "text/xml");
-    
-    const errorNode = xml.querySelector('parsererror');
     const isHtml = text.trim().toLowerCase().startsWith('<!doctype html') || text.trim().toLowerCase().startsWith('<html');
 
-    if (errorNode || isHtml) {
-        // Simple heuristic for HTML redirect, very basic
-        throw new Error("Received HTML instead of XML");
+    // === Feed Auto-Discovery Logic ===
+    if (isHtml) {
+        if (isRetry) throw new Error("Received HTML on retry, cannot discover feed.");
+
+        console.log("Received HTML, attempting to discover feed link...");
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const links = Array.from(doc.querySelectorAll('link[rel="alternate"]'));
+        const feedLink = links.find(l => {
+            const type = l.getAttribute('type');
+            return type === 'application/rss+xml' || type === 'application/atom+xml';
+        });
+
+        if (feedLink) {
+            let discoveredUrl = feedLink.getAttribute('href');
+            if (discoveredUrl) {
+                // Handle relative URLs
+                try {
+                    discoveredUrl = new URL(discoveredUrl, url).href;
+                } catch(e) {
+                     if (discoveredUrl.startsWith('/')) {
+                         const u = new URL(url);
+                         discoveredUrl = u.origin + discoveredUrl;
+                     }
+                }
+                
+                // If discovered URL is effectively different, try fetching it
+                if (discoveredUrl && discoveredUrl !== url) {
+                    return fetchViaXmlProxies(discoveredUrl, true);
+                }
+            }
+        }
+        throw new Error("Received HTML instead of XML and no feed link found");
     }
+
+    const parser = new DOMParser();
+    let xml = parser.parseFromString(text, "text/xml");
+    const errorNode = xml.querySelector('parsererror');
+    if (errorNode) throw new Error("XML Parsing Error");
 
     // Use normalized URL
     const cleanUrl = normalizeUrl(url);

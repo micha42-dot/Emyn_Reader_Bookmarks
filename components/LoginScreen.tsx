@@ -143,9 +143,13 @@ grant all on all tables in schema public to anon, authenticated, service_role;`;
         
         {/* Brand Logo - Simple & Direct */}
         <div className="text-center mb-10 flex flex-col items-center">
-           <div className="flex items-center space-x-2 mb-2">
-             <Asterisk className="w-12 h-12 text-white" strokeWidth={3} />
-             <div className="w-8 h-8 bg-yellow-400 rounded-none"></div>
+           <div className="mb-2">
+             <svg viewBox="0 0 200 100" className="h-12 w-24" preserveAspectRatio="xMidYMid meet">
+                {/* Transparent left side (no black rect), just the white asterisk */}
+                <path d="M50 15L50 85 M19.7 32.5L80.3 67.5 M19.7 67.5L80.3 32.5" stroke="white" strokeWidth="8" strokeLinecap="square" />
+                {/* Yellow Box on right */}
+                <rect x="100" width="100" height="100" fill="#FACC15" />
+             </svg>
            </div>
            <h1 className="text-5xl font-black text-white mb-1 tracking-tighter uppercase">Emyn</h1>
            <p className="text-blue-300 text-xs font-black uppercase tracking-[0.4em]">Reader</p>
